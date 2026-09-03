@@ -1,5 +1,5 @@
 // REPLACE with your live Render backend URL after deployment
-const BACKEND_URL = "https://YOUR_BACKEND_URL_HERE.onrender.com";
+const BACKEND_URL = "https://pulsechat-backend-6q1l.onrender.com";
 
 let socket = null;
 let currentUser = null;
