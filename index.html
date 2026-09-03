@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
   <title>PulseChat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -23,8 +23,8 @@
 
   <div class="app-shell" id="appShell">
     
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
+    <aside class="contacts-screen" id="contactsScreen">
+      <div class="screen-header">
         <div class="user-profile">
           <div class="avatar" id="myAvatar">-</div>
           <div class="meta">
@@ -39,55 +39,44 @@
       <ul class="user-list" id="usersList"></ul>
     </aside>
 
-    <main class="chat-area" id="chatArea">
-      
-      <div class="chat-empty" id="emptyState">
-        <div class="chat-empty-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+    <main class="chat-screen" id="chatScreen">
+      <div class="chat-header">
+        <button class="back-btn" id="backBtn" aria-label="Back">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <div class="avatar" id="chatAvatar">?</div>
+        <div class="chat-header-info">
+          <div class="name" id="chatWithUser">Username</div>
+          <div class="sub" id="chatUserStatus">offline</div>
         </div>
-        <p>Select a contact to open chat</p>
       </div>
 
-      <div class="active-chat-wrapper" id="activeChat">
-        <div class="chat-header">
-          <button class="back-btn" id="backBtn" aria-label="Back">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          </button>
-          <div class="contact-details">
-            <div class="avatar" id="chatAvatar">?</div>
-            <div class="meta-wrap">
-              <div class="name" id="chatWithUser">Username</div>
-              <div class="sub" id="chatUserStatus">offline</div>
-            </div>
-          </div>
-        </div>
+      <div class="messages-container" id="messagesContainer"></div>
 
-        <div class="messages-container" id="messagesContainer"></div>
+      <div class="typing-bar" id="typingIndicator">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span style="margin-left: 4px;" id="typingLabel">typing...</span>
+      </div>
 
-        <div class="typing-bar" id="typingIndicator">
-          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-          <span style="margin-left: 4px;" id="typingLabel">typing...</span>
-        </div>
+      <div class="emoji-drawer" id="emojiDrawer">
+        <span class="emoji-item">😊</span>
+        <span class="emoji-item">❤️</span>
+        <span class="emoji-item">👍</span>
+        <span class="emoji-item">🔥</span>
+        <span class="emoji-item">🎉</span>
+        <span class="emoji-item">✨</span>
+        <span class="emoji-item">😂</span>
+      </div>
 
-        <div class="emoji-drawer" id="emojiDrawer">
-          <span class="emoji-item">😊</span>
-          <span class="emoji-item">❤️</span>
-          <span class="emoji-item">👍</span>
-          <span class="emoji-item">🔥</span>
-          <span class="emoji-item">🎉</span>
-          <span class="emoji-item">✨</span>
-          <span class="emoji-item">😂</span>
-        </div>
-
-        <div class="chat-footer">
-          <button class="emoji-btn" id="emojiToggleBtn">☺</button>
-          <input type="text" class="chat-input" id="messageInput" placeholder="Message..." autocomplete="off" />
-          <button class="send-btn" id="sendBtn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-          </button>
-        </div>
+      <div class="chat-footer">
+        <button class="emoji-btn" id="emojiToggleBtn">☺</button>
+        <input type="text" class="chat-input" id="messageInput" placeholder="Message..." autocomplete="off" />
+        <button class="send-btn" id="sendBtn" aria-label="Send">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
       </div>
     </main>
+
   </div>
 
   <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
