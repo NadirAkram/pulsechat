@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PulseChat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <div class="modal-backdrop" id="authModal">
+    <div class="modal">
+      <h2>Welcome to PulseChat</h2>
+      <p>Enter a unique handle to connect.</p>
+      <input type="text" id="usernameInput" placeholder="e.g. zayn_01" autofocus maxlength="20" />
+      <div class="error-text" id="authError"></div>
+      <button class="btn-primary" id="loginBtn">Start Chatting</button>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="user-profile">
+          <div class="avatar" id="myAvatar">-</div>
+          <div class="meta">
+            <div class="id" id="myIdDisplay">Connecting...</div>
+            <div class="badge">Online</div>
+          </div>
+        </div>
+      </div>
+      <div class="search-box">
+        <input type="text" class="search-input" id="searchUser" placeholder="Search user ID..." />
+      </div>
+      <ul class="user-list" id="usersList"></ul>
+    </aside>
+
+    <main class="chat-area" id="chatArea">
+      <div class="chat-empty" id="emptyState">
+        <div class="chat-empty-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+        </div>
+        <p>Select a user to start chatting</p>
+      </div>
+
+      <div id="activeChat" style="display: none; flex: 1; flex-direction: column; height: 100%;">
+        <div class="chat-header">
+          <div class="contact-details">
+            <div class="avatar" id="chatAvatar">?</div>
+            <div>
+              <div class="name" id="chatWithUser">Username</div>
+              <div class="sub" id="chatUserStatus">offline</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="messages-container" id="messagesContainer"></div>
+
+        <div class="typing-bar" id="typingIndicator">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span style="margin-left: 4px;" id="typingLabel">typing...</span>
+        </div>
+
+        <div class="emoji-drawer" id="emojiDrawer">
+          <span class="emoji-item">😊</span>
+          <span class="emoji-item">❤️</span>
+          <span class="emoji-item">👍</span>
+          <span class="emoji-item">🔥</span>
+          <span class="emoji-item">🎉</span>
+          <span class="emoji-item">✨</span>
+          <span class="emoji-item">😂</span>
+        </div>
+
+        <div class="chat-footer">
+          <button class="emoji-btn" id="emojiToggleBtn">☺</button>
+          <input type="text" class="chat-input" id="messageInput" placeholder="Type a message..." autocomplete="off" />
+          <button class="send-btn" id="sendBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
