@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
   <title>PulseChat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -13,16 +13,17 @@
 
   <div class="modal-backdrop" id="authModal">
     <div class="modal">
-      <h2>Welcome to PulseChat</h2>
+      <h2>PulseChat</h2>
       <p>Enter a unique handle to connect.</p>
-      <input type="text" id="usernameInput" placeholder="e.g. zayn_01" autofocus maxlength="20" />
+      <input type="text" id="usernameInput" placeholder="e.g. nadir" autofocus maxlength="20" />
       <div class="error-text" id="authError"></div>
       <button class="btn-primary" id="loginBtn">Start Chatting</button>
     </div>
   </div>
 
-  <div class="app-shell">
-    <aside class="sidebar">
+  <div class="app-shell" id="appShell">
+    
+    <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="user-profile">
           <div class="avatar" id="myAvatar">-</div>
@@ -33,24 +34,28 @@
         </div>
       </div>
       <div class="search-box">
-        <input type="text" class="search-input" id="searchUser" placeholder="Search user ID..." />
+        <input type="text" class="search-input" id="searchUser" placeholder="Search contacts..." />
       </div>
       <ul class="user-list" id="usersList"></ul>
     </aside>
 
     <main class="chat-area" id="chatArea">
+      
       <div class="chat-empty" id="emptyState">
         <div class="chat-empty-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+          <svg width="32" height="32" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
         </div>
-        <p>Select a user to start chatting</p>
+        <p>Select a contact to open chat</p>
       </div>
 
-      <div id="activeChat" style="display: none; flex: 1; flex-direction: column; height: 100%;">
+      <div class="active-chat-wrapper" id="activeChat">
         <div class="chat-header">
+          <button class="back-btn" id="backBtn" aria-label="Back">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
           <div class="contact-details">
             <div class="avatar" id="chatAvatar">?</div>
-            <div>
+            <div class="meta-wrap">
               <div class="name" id="chatWithUser">Username</div>
               <div class="sub" id="chatUserStatus">offline</div>
             </div>
@@ -76,7 +81,7 @@
 
         <div class="chat-footer">
           <button class="emoji-btn" id="emojiToggleBtn">☺</button>
-          <input type="text" class="chat-input" id="messageInput" placeholder="Type a message..." autocomplete="off" />
+          <input type="text" class="chat-input" id="messageInput" placeholder="Message..." autocomplete="off" />
           <button class="send-btn" id="sendBtn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
