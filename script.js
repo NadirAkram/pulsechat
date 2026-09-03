@@ -1,4 +1,3 @@
-// REPLACE with your live Render backend URL after deploymen
 const BACKEND_URL = "https://pulsechat-backend-6q1l.onrender.com";
 
 let socket = null;
@@ -16,6 +15,8 @@ const myAvatar = document.getElementById('myAvatar');
 const myIdDisplay = document.getElementById('myIdDisplay');
 const usersList = document.getElementById('usersList');
 const searchUser = document.getElementById('searchUser');
+const appShell = document.getElementById('appShell');
+const backBtn = document.getElementById('backBtn');
 const emptyState = document.getElementById('emptyState');
 const activeChat = document.getElementById('activeChat');
 const chatWithUser = document.getElementById('chatWithUser');
@@ -109,10 +110,23 @@ async function handleAuth() {
     myIdDisplay.innerText = currentUser;
     myAvatar.innerText = currentUser.slice(0, 2);
 
+    await fetchUsers();
     connectSocket();
   } catch (err) {
-    authError.innerText = 'Cannot reach chat server. Verify BACKEND_URL.';
+    authError.innerText = 'Cannot reach chat server.';
     authError.style.display = 'block';
+  }
+}
+
+async function fetchUsers() {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/users?exclude=${currentUser}`);
+    if (res.ok) {
+      activeUsers = await res.json();
+      renderUserList(searchUser.value);
+    }
+  } catch (err) {
+    console.error('Failed to fetch user directory', err);
   }
 }
 
@@ -140,12 +154,14 @@ function renderUserList(filterText = '') {
 
 searchUser.addEventListener('input', (e) => renderUserList(e.target.value));
 
+// Switch to chat thread (Mobile full-screen toggle)
 async function openChat(contactId) {
   selectedContact = contactId;
-  renderUserList(searchUser.value);
+  appShell.classList.add('chat-open');
 
-  emptyState.style.display = 'none';
+  if (emptyState) emptyState.style.display = 'none';
   activeChat.style.display = 'flex';
+
   chatWithUser.innerText = contactId;
   chatAvatar.innerText = contactId.slice(0, 2);
 
@@ -163,6 +179,13 @@ async function openChat(contactId) {
 
   socket.emit('mark_read', { contactId });
 }
+
+// Back button on mobile
+backBtn.onclick = () => {
+  appShell.classList.remove('chat-open');
+  selectedContact = null;
+  renderUserList(searchUser.value);
+};
 
 function updateChatHeaderPresence() {
   if (!selectedContact) return;
