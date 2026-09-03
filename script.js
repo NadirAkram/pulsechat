@@ -6,6 +6,9 @@ let selectedContact = null;
 let activeUsers = [];
 let typingTimeout = null;
 
+// Unread messages map: { "nadir2": 3, "check": 1 }
+let unreadCounts = {};
+
 // DOM Elements
 const authModal = document.getElementById('authModal');
 const usernameInput = document.getElementById('usernameInput');
@@ -17,8 +20,6 @@ const usersList = document.getElementById('usersList');
 const searchUser = document.getElementById('searchUser');
 const appShell = document.getElementById('appShell');
 const backBtn = document.getElementById('backBtn');
-const emptyState = document.getElementById('emptyState');
-const activeChat = document.getElementById('activeChat');
 const chatWithUser = document.getElementById('chatWithUser');
 const chatAvatar = document.getElementById('chatAvatar');
 const chatUserStatus = document.getElementById('chatUserStatus');
@@ -58,6 +59,11 @@ function connectSocket() {
     if (selectedContact === msg.senderId) {
       appendMessageBubble(msg, false);
       socket.emit('mark_read', { contactId: msg.senderId });
+    } else {
+      // In WhatsApp style: increment unread count for this sender
+      unreadCounts[msg.senderId] = (unreadCounts[msg.senderId] || 0) + 1;
+      localStorage.setItem('pulse_unread_' + currentUser, JSON.stringify(unreadCounts));
+      renderUserList(searchUser.value);
     }
   });
 
@@ -106,6 +112,8 @@ async function handleAuth() {
     }
 
     currentUser = data.userId;
+    unreadCounts = JSON.parse(localStorage.getItem('pulse_unread_' + currentUser) || '{}');
+
     authModal.style.display = 'none';
     myIdDisplay.innerText = currentUser;
     myAvatar.innerText = currentUser.slice(0, 2);
@@ -136,6 +144,9 @@ function renderUserList(filterText = '') {
     .filter(u => u.id.includes(filterText.toLowerCase()))
     .forEach(u => {
       const isOnline = u.is_online === 1;
+      const count = unreadCounts[u.id] || 0;
+      const badgeHtml = count > 0 ? `<span class="unread-badge">${count}</span>` : '';
+
       const li = document.createElement('li');
       li.className = `user-card ${selectedContact === u.id ? 'active' : ''}`;
       li.innerHTML = `
@@ -146,6 +157,7 @@ function renderUserList(filterText = '') {
             <span class="user-status-indicator ${isOnline ? 'online' : ''}">${isOnline ? 'online' : 'offline'}</span>
           </div>
         </div>
+        ${badgeHtml}
       `;
       li.onclick = () => openChat(u.id);
       usersList.appendChild(li);
@@ -154,13 +166,17 @@ function renderUserList(filterText = '') {
 
 searchUser.addEventListener('input', (e) => renderUserList(e.target.value));
 
-// Switch to chat thread (Mobile full-screen toggle)
+// Open Chat: Switch to screen 2
 async function openChat(contactId) {
   selectedContact = contactId;
   appShell.classList.add('chat-open');
 
-  if (emptyState) emptyState.style.display = 'none';
-  activeChat.style.display = 'flex';
+  // Clear unread count for this contact
+  if (unreadCounts[contactId]) {
+    unreadCounts[contactId] = 0;
+    localStorage.setItem('pulse_unread_' + currentUser, JSON.stringify(unreadCounts));
+    renderUserList(searchUser.value);
+  }
 
   chatWithUser.innerText = contactId;
   chatAvatar.innerText = contactId.slice(0, 2);
@@ -180,7 +196,7 @@ async function openChat(contactId) {
   socket.emit('mark_read', { contactId });
 }
 
-// Back button on mobile
+// Back Button: Return to Screen 1
 backBtn.onclick = () => {
   appShell.classList.remove('chat-open');
   selectedContact = null;
