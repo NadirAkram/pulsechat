@@ -14,12 +14,13 @@ import {
   update, 
   push, 
   onValue, 
+  off,
   onDisconnect, 
   serverTimestamp 
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-database.js";
 
 // ================= FIREBASE CONFIG =================
-// Replace placeholders with your Firebase credentials
+// Keep your Firebase project credentials here
 const firebaseConfig = {
   apiKey: "AIzaSyARVhfGqtjKL8X320Bf5KdRf2dloHP1XlA",
   authDomain: "pinktalk-app.firebaseapp.com",
@@ -29,18 +30,20 @@ const firebaseConfig = {
   messagingSenderId: "328850289956",
   appId: "1:328850289956:web:86c1e2f715f57abe5e6fb1"
 };
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-// State
+// State variables
 let currentUser = null;
 let activeRecipient = null;
-let messagesUnsubscribe = null;
+let currentMessagesRef = null;
+let currentTypingRef = null;
+let currentStatusRef = null;
 let typingTimeout = null;
+let isSending = false;
 
-// DOM Elements
+// DOM references
 const authScreen = document.getElementById("auth-screen");
 const appScreen = document.getElementById("app-screen");
 const authForm = document.getElementById("auth-form");
@@ -49,43 +52,60 @@ const passwordInput = document.getElementById("auth-password");
 const authError = document.getElementById("auth-error");
 const logoutBtn = document.getElementById("logout-btn");
 
+const appLayout = document.getElementById("app-layout");
 const currentAvatar = document.getElementById("current-user-avatar");
 const currentUserName = document.getElementById("current-user-name");
 const searchInput = document.getElementById("search-input");
 const usersList = document.getElementById("users-list");
 
-const appLayout = document.querySelector(".app-layout");
-const emptyState = document.getElementById("empty-state");
-const activeChat = document.getElementById("active-chat");
 const chatBackBtn = document.getElementById("chat-back-btn");
 const recipientAvatar = document.getElementById("recipient-avatar");
 const recipientName = document.getElementById("recipient-name");
 const recipientStatus = document.getElementById("recipient-status");
-const messagesList = document.getElementById("messages-list");
 const messagesViewport = document.getElementById("messages-viewport");
+const messagesList = document.getElementById("messages-list");
 const messageInput = document.getElementById("message-input");
 const sendBtn = document.getElementById("send-btn");
 const typingIndicator = document.getElementById("typing-indicator");
 const emojiToggleBtn = document.getElementById("emoji-toggle-btn");
 const emojiPicker = document.getElementById("emoji-picker");
 
-// ================= AUTH FLOW =================
+// SVG Tick Helpers
+const doubleTickSvg = (isRead) => `
+  <span class="tick-svg ${isRead ? 'read' : 'delivered'}">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 6L7 17l-5-5"></path>
+      <path d="M22 10l-7.5 7.5-1.5-1.5"></path>
+    </svg>
+  </span>
+`;
+
+// Helper for consistent chatId
+function getChatId(uid1, uid2) {
+  return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+}
+
+// ================= AUTHENTICATION =================
 authForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   authError.textContent = "";
-  const rawId = usernameInput.value.trim().toLowerCase();
+  const rawId = usernameInput.value.trim().toLowerCase().replace(/\s+/g, '');
   const password = passwordInput.value;
 
-  // Turn simple username into a standard email pattern
+  if (!rawId || password.length < 6) {
+    authError.textContent = "Password must be at least 6 characters.";
+    return;
+  }
+
   const syntheticEmail = `${rawId}@pinktalk.app`;
 
   try {
-    // Attempt Direct Login
+    // Attempt login
     await signInWithEmailAndPassword(auth, syntheticEmail, password);
   } catch (err) {
     if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
       try {
-        // Auto-Register if Account Doesn't Exist
+        // Auto-register new user
         const cred = await createUserWithEmailAndPassword(auth, syntheticEmail, password);
         await set(ref(db, `users/${cred.user.uid}`), {
           uid: cred.user.uid,
@@ -112,7 +132,7 @@ logoutBtn.addEventListener("click", async () => {
   await signOut(auth);
 });
 
-// Watch Auth Status
+// Auth state tracker
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
@@ -120,9 +140,9 @@ onAuthStateChanged(auth, async (user) => {
     const profile = snap.val() || { username: user.email.split("@")[0] };
 
     currentUserName.textContent = profile.username;
-    currentAvatar.textContent = profile.username.charAt(0);
+    currentAvatar.textContent = profile.username.charAt(0).toUpperCase();
 
-    // Track Presence
+    // Presence management
     const userRef = ref(db, `users/${user.uid}`);
     onDisconnect(userRef).update({
       online: false,
@@ -140,18 +160,13 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// ================= USERS & UNREAD COUNT =================
-function getChatId(uid1, uid2) {
-  return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
-}
-
+// ================= CONTACT LIST & UNREAD BADGES =================
 function loadUsersList() {
   const usersRef = ref(db, "users");
   onValue(usersRef, (snapshot) => {
     const data = snapshot.val() || {};
     renderUsers(data, searchInput.value);
 
-    // Search Listener
     searchInput.oninput = (e) => {
       renderUsers(data, e.target.value);
     };
@@ -167,17 +182,17 @@ function renderUsers(usersData, query = "") {
     if (filter && !u.username.toLowerCase().includes(filter)) return;
 
     const userDiv = document.createElement("div");
-    userDiv.className = `user-item ${activeRecipient?.uid === u.uid ? "active" : ""}`;
-    userDiv.id = `user-item-${u.uid}`;
+    userDiv.className = "contact-item";
+    userDiv.id = `contact-${u.uid}`;
 
     userDiv.innerHTML = `
-      <div class="avatar">${u.username.charAt(0)}</div>
-      <div class="user-item-info">
-        <div class="user-item-top">
-          <span class="user-item-name">${u.username}</span>
+      <div class="avatar">${u.username.charAt(0).toUpperCase()}</div>
+      <div class="contact-info">
+        <div class="contact-top">
+          <span class="contact-name">${u.username}</span>
         </div>
-        <div class="user-item-bottom">
-          <span class="last-msg-preview" id="preview-${u.uid}">...</span>
+        <div class="contact-bottom">
+          <span class="last-msg" id="preview-${u.uid}">No messages</span>
           <span class="unread-badge" id="badge-${u.uid}" style="display: none;">0</span>
         </div>
       </div>
@@ -186,23 +201,23 @@ function renderUsers(usersData, query = "") {
     userDiv.addEventListener("click", () => openChat(u));
     usersList.appendChild(userDiv);
 
-    // Track unread messages & preview
-    attachUnreadListener(u.uid);
+    // Watch unread counter for this contact
+    listenContactSummary(u.uid);
   });
 }
 
-function attachUnreadListener(otherUid) {
+function listenContactSummary(otherUid) {
   const chatId = getChatId(currentUser.uid, otherUid);
   const msgsRef = ref(db, `messages/${chatId}`);
 
   onValue(msgsRef, (snapshot) => {
     const msgs = snapshot.val();
     let unreadCount = 0;
-    let lastMessageText = "No messages";
+    let lastText = "No messages";
 
     if (msgs) {
       const msgList = Object.values(msgs);
-      lastMessageText = msgList[msgList.length - 1].text;
+      lastText = msgList[msgList.length - 1].text;
 
       msgList.forEach((m) => {
         if (m.sender !== currentUser.uid && m.read === false) {
@@ -214,7 +229,7 @@ function attachUnreadListener(otherUid) {
     const badge = document.getElementById(`badge-${otherUid}`);
     const preview = document.getElementById(`preview-${otherUid}`);
 
-    if (preview) preview.textContent = lastMessageText;
+    if (preview) preview.textContent = lastText;
     if (badge) {
       if (unreadCount > 0 && activeRecipient?.uid !== otherUid) {
         badge.textContent = unreadCount;
@@ -226,36 +241,50 @@ function attachUnreadListener(otherUid) {
   });
 }
 
-// ================= ACTIVE CHAT & STATUS =================
+// ================= ACTIVE CHAT & MOBILE TRANSITION =================
 function openChat(recipient) {
   activeRecipient = recipient;
-  emptyState.style.display = "none";
-  activeChat.style.display = "flex";
+
+  // Mobile navigation slide
   appLayout.classList.add("in-chat");
 
   recipientName.textContent = recipient.username;
-  recipientAvatar.textContent = recipient.username.charAt(0);
+  recipientAvatar.textContent = recipient.username.charAt(0).toUpperCase();
 
-  // Monitor Recipient Presence & Typing
-  listenRecipientStatus(recipient.uid);
+  // Clear unread badge immediately
+  const badge = document.getElementById(`badge-${recipient.uid}`);
+  if (badge) badge.style.display = "none";
+
+  cleanupCurrentChat();
+  listenRecipientPresence(recipient.uid);
   listenMessages(recipient.uid);
 }
 
 chatBackBtn.addEventListener("click", () => {
   appLayout.classList.remove("in-chat");
+  cleanupCurrentChat();
   activeRecipient = null;
 });
 
-function listenRecipientStatus(otherUid) {
-  const statusRef = ref(db, `users/${otherUid}`);
-  onValue(statusRef, (snap) => {
+function cleanupCurrentChat() {
+  if (currentMessagesRef) off(currentMessagesRef);
+  if (currentTypingRef) off(currentTypingRef);
+  if (currentStatusRef) off(currentStatusRef);
+  messagesList.innerHTML = "";
+  typingIndicator.style.display = "none";
+}
+
+// Presence & typing indicator
+function listenRecipientPresence(otherUid) {
+  currentStatusRef = ref(db, `users/${otherUid}`);
+  const chatId = getChatId(currentUser.uid, otherUid);
+  currentTypingRef = ref(db, `typing/${chatId}/${otherUid}`);
+
+  onValue(currentStatusRef, (snap) => {
     const user = snap.val();
     if (!user) return;
 
-    const chatId = getChatId(currentUser.uid, otherUid);
-    const typingRef = ref(db, `typing/${chatId}/${otherUid}`);
-
-    onValue(typingRef, (typingSnap) => {
+    onValue(currentTypingRef, (typingSnap) => {
       const isTyping = typingSnap.val();
       if (isTyping) {
         recipientStatus.textContent = "typing...";
@@ -276,83 +305,105 @@ function listenRecipientStatus(otherUid) {
   });
 }
 
-// ================= MESSAGING, READ TICKS & DELIVERY =================
+// ================= DEDUPLICATED MESSAGE LISTENER =================
 function listenMessages(otherUid) {
-  if (messagesUnsubscribe) messagesUnsubscribe();
-
   const chatId = getChatId(currentUser.uid, otherUid);
-  const msgsRef = ref(db, `messages/${chatId}`);
+  currentMessagesRef = ref(db, `messages/${chatId}`);
 
-  messagesUnsubscribe = onValue(msgsRef, (snapshot) => {
-    messagesList.innerHTML = "";
+  onValue(currentMessagesRef, (snapshot) => {
     const msgs = snapshot.val();
+    if (!msgs) {
+      messagesList.innerHTML = "";
+      return;
+    }
 
-    if (!msgs) return;
+    const unreadUpdates = {};
 
     Object.entries(msgs).forEach(([msgKey, msg]) => {
-      // Mark as read if received by current user
-      if (msg.sender !== currentUser.uid && msg.read === false) {
-        update(ref(db, `messages/${chatId}/${msgKey}`), { read: true });
-      }
-
-      const bubble = document.createElement("div");
       const isMe = msg.sender === currentUser.uid;
-      bubble.className = `message-bubble ${isMe ? "sent" : "received"}`;
 
-      const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-      // WhatsApp-Style Tick Representation
-      let ticksHtml = "";
-      if (isMe) {
-        if (msg.read) {
-          // Double Blue Tick
-          ticksHtml = `<span class="tick-icon read">✓✓</span>`;
-        } else {
-          // Double Grey Tick (Delivered to Server)
-          ticksHtml = `<span class="tick-icon">✓✓</span>`;
-        }
+      // Queue read receipts (without recursive firing)
+      if (!isMe && msg.read === false) {
+        unreadUpdates[`messages/${chatId}/${msgKey}/read`] = true;
       }
 
-      bubble.innerHTML = `
-        <div>${escapeHtml(msg.text)}</div>
-        <div class="meta-info">
-          <span class="timestamp">${time}</span>
-          ${ticksHtml}
-        </div>
-      `;
+      // Check if message DOM node already exists (avoids duplication)
+      let bubble = document.getElementById(`msg-${msgKey}`);
+      if (bubble) {
+        // Only update tick mark if delivery/read status changed
+        const tickContainer = bubble.querySelector(".tick-svg");
+        if (tickContainer && isMe) {
+          if (msg.read) {
+            tickContainer.className = "tick-svg read";
+          } else {
+            tickContainer.className = "tick-svg delivered";
+          }
+        }
+      } else {
+        // Create new bubble
+        bubble = document.createElement("div");
+        bubble.id = `msg-${msgKey}`;
+        bubble.className = `bubble ${isMe ? 'sent' : 'received'}`;
 
-      messagesList.appendChild(bubble);
+        const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const ticksHtml = isMe ? doubleTickSvg(msg.read) : "";
+
+        bubble.innerHTML = `
+          <span>${escapeHtml(msg.text)}</span>
+          <div class="bubble-meta">
+            <span class="msg-time">${time}</span>
+            ${ticksHtml}
+          </div>
+        `;
+        messagesList.appendChild(bubble);
+      }
     });
+
+    // Execute atomic read update if any unread messages exist
+    if (Object.keys(unreadUpdates).length > 0) {
+      update(ref(db), unreadUpdates);
+    }
 
     messagesViewport.scrollTop = messagesViewport.scrollHeight;
   });
 }
 
-// Send Message
+// ================= SENDING & COMPOSER =================
 async function sendMessage() {
+  if (isSending) return;
   const text = messageInput.value.trim();
   if (!text || !activeRecipient) return;
+
+  isSending = true;
+  messageInput.value = "";
+  setTyping(false);
 
   const chatId = getChatId(currentUser.uid, activeRecipient.uid);
   const msgsRef = ref(db, `messages/${chatId}`);
 
-  messageInput.value = "";
-  setTyping(false);
-
-  await push(msgsRef, {
-    sender: currentUser.uid,
-    text: text,
-    timestamp: Date.now(),
-    read: false
-  });
+  try {
+    await push(msgsRef, {
+      sender: currentUser.uid,
+      text: text,
+      timestamp: Date.now(),
+      read: false
+    });
+  } finally {
+    isSending = false;
+    messageInput.focus();
+  }
 }
 
 sendBtn.addEventListener("click", sendMessage);
+
 messageInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendMessage();
+  if (e.key === "Enter") {
+    e.preventDefault();
+    sendMessage();
+  }
 });
 
-// Typing Handler
+// Typing tracker
 messageInput.addEventListener("input", () => {
   if (!activeRecipient) return;
   setTyping(true);
@@ -366,8 +417,9 @@ function setTyping(isTyping) {
   set(ref(db, `typing/${chatId}/${currentUser.uid}`), isTyping);
 }
 
-// Emoji Handling
-emojiToggleBtn.addEventListener("click", () => {
+// Emoji toggle
+emojiToggleBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
   emojiPicker.classList.toggle("show");
 });
 
@@ -379,8 +431,14 @@ emojiPicker.addEventListener("click", (e) => {
   }
 });
 
-function escapeHtml(string) {
-  const div = document.createElement("div");
-  div.textContent = string;
-  return div.innerHTML;
+document.addEventListener("click", (e) => {
+  if (!emojiPicker.contains(e.target) && e.target !== emojiToggleBtn) {
+    emojiPicker.classList.remove("show");
+  }
+});
+
+function escapeHtml(str) {
+  const d = document.createElement("div");
+  d.textContent = str;
+  return d.innerHTML;
 }
