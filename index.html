@@ -2,84 +2,123 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
-  <title>PulseChat</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PinkTalk | Messenger</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols-Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <div class="modal-backdrop" id="authModal">
-    <div class="modal">
-      <h2>PulseChat</h2>
-      <p>Enter a unique handle to connect.</p>
-      <input type="text" id="usernameInput" placeholder="e.g. nadir" autofocus maxlength="20" />
-      <div class="error-text" id="authError"></div>
-      <button class="btn-primary" id="loginBtn">Start Chatting</button>
+  <div id="auth-screen" class="screen active">
+    <div class="auth-card">
+      <div class="auth-header">
+        <span class="material-symbols-rounded auth-icon">chat_bubble</span>
+        <h2>PinkTalk</h2>
+        <p>Login or auto-create your account</p>
+      </div>
+      <form id="auth-form">
+        <div class="material-field">
+          <input type="text" id="auth-username" required placeholder=" " autocomplete="off" />
+          <label for="auth-username">Username or ID</label>
+        </div>
+        <div class="material-field">
+          <input type="password" id="auth-password" required placeholder=" " />
+          <label for="auth-password">Password</label>
+        </div>
+        <button type="submit" id="auth-submit-btn" class="btn-primary">
+          <span>Continue</span>
+          <span class="material-symbols-rounded">arrow_forward</span>
+        </button>
+        <p id="auth-error" class="error-msg"></p>
+      </form>
     </div>
   </div>
 
-  <div class="app-shell" id="appShell">
-    
-    <aside class="contacts-screen" id="contactsScreen">
-      <div class="screen-header">
-        <div class="user-profile">
-          <div class="avatar" id="myAvatar">-</div>
-          <div class="meta">
-            <div class="id" id="myIdDisplay">Connecting...</div>
-            <div class="badge">Online</div>
+  <div id="app-screen" class="screen">
+    <div class="app-layout">
+
+      <aside class="sidebar" id="sidebar">
+        <header class="sidebar-header">
+          <div class="user-profile">
+            <div class="avatar" id="current-user-avatar">?</div>
+            <div class="user-details">
+              <strong id="current-user-name">Loading...</strong>
+              <span class="status-indicator online">Online</span>
+            </div>
+          </div>
+          <button id="logout-btn" class="icon-btn" title="Sign Out">
+            <span class="material-symbols-rounded">logout</span>
+          </button>
+        </header>
+
+        <div class="search-bar-container">
+          <div class="material-search">
+            <span class="material-symbols-rounded">search</span>
+            <input type="text" id="search-input" placeholder="Search users by name..." />
           </div>
         </div>
-      </div>
-      <div class="search-box">
-        <input type="text" class="search-input" id="searchUser" placeholder="Search contacts..." />
-      </div>
-      <ul class="user-list" id="usersList"></ul>
-    </aside>
 
-    <main class="chat-screen" id="chatScreen">
-      <div class="chat-header">
-        <button class="back-btn" id="backBtn" aria-label="Back">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-        </button>
-        <div class="avatar" id="chatAvatar">?</div>
-        <div class="chat-header-info">
-          <div class="name" id="chatWithUser">Username</div>
-          <div class="sub" id="chatUserStatus">offline</div>
+        <div class="user-list" id="users-list">
+          </div>
+      </aside>
+
+      <main class="chat-area" id="chat-area">
+        <div class="empty-state" id="empty-state">
+          <span class="material-symbols-rounded">forum</span>
+          <h3>Select a contact to start chatting</h3>
         </div>
-      </div>
 
-      <div class="messages-container" id="messagesContainer"></div>
+        <section class="active-chat-container" id="active-chat" style="display: none;">
+          <header class="chat-header">
+            <button class="icon-btn back-btn" id="chat-back-btn">
+              <span class="material-symbols-rounded">arrow_back</span>
+            </button>
+            <div class="avatar" id="recipient-avatar">?</div>
+            <div class="chat-header-info">
+              <h4 id="recipient-name">Recipient</h4>
+              <p id="recipient-status" class="presence-text">Offline</p>
+            </div>
+          </header>
 
-      <div class="typing-bar" id="typingIndicator">
-        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-        <span style="margin-left: 4px;" id="typingLabel">typing...</span>
-      </div>
+          <div class="messages-viewport" id="messages-viewport">
+            <div class="messages-list" id="messages-list"></div>
+          </div>
 
-      <div class="emoji-drawer" id="emojiDrawer">
-        <span class="emoji-item">😊</span>
-        <span class="emoji-item">❤️</span>
-        <span class="emoji-item">👍</span>
-        <span class="emoji-item">🔥</span>
-        <span class="emoji-item">🎉</span>
-        <span class="emoji-item">✨</span>
-        <span class="emoji-item">😂</span>
-      </div>
+          <div class="typing-bubble" id="typing-indicator">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+          </div>
 
-      <div class="chat-footer">
-        <button class="emoji-btn" id="emojiToggleBtn">☺</button>
-        <input type="text" class="chat-input" id="messageInput" placeholder="Message..." autocomplete="off" />
-        <button class="send-btn" id="sendBtn" aria-label="Send">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-        </button>
-      </div>
-    </main>
+          <div class="composer-container">
+            <div class="emoji-picker" id="emoji-picker">
+              <span>😀</span><span>😁</span><span>😂</span><span>🤣</span><span>😊</span>
+              <span>😍</span><span>🥰</span><span>😘</span><span>😜</span><span>🤗</span>
+              <span>🤔</span><span>🤐</span><span>😴</span><span>❤️</span><span>💖</span>
+              <span>🔥</span><span>🎉</span><span>👍</span><span>🙏</span><span>💯</span>
+            </div>
 
+            <div class="composer-bar">
+              <button type="button" class="icon-btn" id="emoji-toggle-btn">
+                <span class="material-symbols-rounded">mood</span>
+              </button>
+              <div class="material-chat-field">
+                <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" />
+              </div>
+              <button class="send-btn" id="send-btn">
+                <span class="material-symbols-rounded">send</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+    </div>
   </div>
 
-  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-  <script src="script.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
