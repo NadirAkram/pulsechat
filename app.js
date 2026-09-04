@@ -24,13 +24,13 @@ import {
 // ================= FIREBASE CONFIG =================
 // Keep your Firebase project credentials here
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyARVhfGqtjKL8X320Bf5KdRf2dloHP1XlA",
+  authDomain: "pinktalk-app.firebaseapp.com",
+  databaseURL: "https://pinktalk-app-default-rtdb.firebaseio.com",
+  projectId: "pinktalk-app",
+  storageBucket: "pinktalk-app.firebasestorage.app",
+  messagingSenderId: "328850289956",
+  appId: "1:328850289956:web:86c1e2f715f57abe5e6fb1"
 };
 
 const app = initializeApp(firebaseConfig);
