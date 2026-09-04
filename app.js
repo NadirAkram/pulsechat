@@ -4,7 +4,9 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  setPersistence,
+  browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
 import { 
   getDatabase, 
@@ -22,20 +24,20 @@ import {
 // ================= FIREBASE CONFIG =================
 // Keep your Firebase project credentials here
 const firebaseConfig = {
-  apiKey: "AIzaSyARVhfGqtjKL8X320Bf5KdRf2dloHP1XlA",
-  authDomain: "pinktalk-app.firebaseapp.com",
-  databaseURL: "https://pinktalk-app-default-rtdb.firebaseio.com",
-  projectId: "pinktalk-app",
-  storageBucket: "pinktalk-app.firebasestorage.app",
-  messagingSenderId: "328850289956",
-  appId: "1:328850289956:web:86c1e2f715f57abe5e6fb1"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID"
 };
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
 // State variables
-let currentUser = null;
 let activeRecipient = null;
 let currentMessagesRef = null;
 let currentTypingRef = null;
@@ -49,6 +51,9 @@ const appScreen = document.getElementById("app-screen");
 const authForm = document.getElementById("auth-form");
 const usernameInput = document.getElementById("auth-username");
 const passwordInput = document.getElementById("auth-password");
+const authProgress = document.getElementById("auth-progress");
+const authSubmitBtn = document.getElementById("auth-submit-btn");
+const authBtnText = document.getElementById("auth-btn-text");
 const authError = document.getElementById("auth-error");
 const logoutBtn = document.getElementById("logout-btn");
 
@@ -70,7 +75,7 @@ const typingIndicator = document.getElementById("typing-indicator");
 const emojiToggleBtn = document.getElementById("emoji-toggle-btn");
 const emojiPicker = document.getElementById("emoji-picker");
 
-// SVG Tick Helpers
+// SVG Double Tick Generator
 const doubleTickSvg = (isRead) => `
   <span class="tick-svg ${isRead ? 'read' : 'delivered'}">
     <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -80,32 +85,54 @@ const doubleTickSvg = (isRead) => `
   </span>
 `;
 
-// Helper for consistent chatId
 function getChatId(uid1, uid2) {
   return uid1 < uid2 ? `${uid1}_${uid2}` : `${uid2}_${uid1}`;
+}
+
+function setAuthLoading(isLoading) {
+  authSubmitBtn.disabled = isLoading;
+  authProgress.style.display = isLoading ? "block" : "none";
+  authBtnText.textContent = isLoading ? "Connecting..." : "Continue";
 }
 
 // ================= AUTHENTICATION =================
 authForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   authError.textContent = "";
+
   const rawId = usernameInput.value.trim().toLowerCase().replace(/\s+/g, '');
   const password = passwordInput.value;
 
-  if (!rawId || password.length < 6) {
+  if (!rawId) {
+    authError.textContent = "Please enter a valid User ID.";
+    return;
+  }
+  if (password.length < 6) {
     authError.textContent = "Password must be at least 6 characters.";
     return;
   }
 
+  setAuthLoading(true);
   const syntheticEmail = `${rawId}@pinktalk.app`;
 
   try {
+    // Isolates sessions per tab to prevent multi-tab user collision on same device
+    try {
+      await setPersistence(auth, browserSessionPersistence);
+    } catch (_) {
+      // Fallback if browser policy restricts session persistence
+    }
+
     // Attempt login
     await signInWithEmailAndPassword(auth, syntheticEmail, password);
   } catch (err) {
-    if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential") {
+    if (
+      err.code === "auth/user-not-found" || 
+      err.code === "auth/invalid-credential" || 
+      err.code === "auth/invalid-login-credentials"
+    ) {
       try {
-        // Auto-register new user
+        // Auto-create account if user does not exist
         const cred = await createUserWithEmailAndPassword(auth, syntheticEmail, password);
         await set(ref(db, `users/${cred.user.uid}`), {
           uid: cred.user.uid,
@@ -115,34 +142,39 @@ authForm.addEventListener("submit", async (e) => {
         });
       } catch (regErr) {
         authError.textContent = regErr.message;
+        setAuthLoading(false);
       }
     } else {
       authError.textContent = err.message;
+      setAuthLoading(false);
     }
   }
 });
 
 logoutBtn.addEventListener("click", async () => {
-  if (currentUser) {
-    await update(ref(db, `users/${currentUser.uid}`), {
+  const currentUid = auth.currentUser?.uid;
+  if (currentUid) {
+    await update(ref(db, `users/${currentUid}`), {
       online: false,
       lastSeen: serverTimestamp()
     });
   }
+  cleanupCurrentChat();
   await signOut(auth);
 });
 
-// Auth state tracker
+// Auth State Monitor
 onAuthStateChanged(auth, async (user) => {
+  setAuthLoading(false);
+
   if (user) {
-    currentUser = user;
     const snap = await get(ref(db, `users/${user.uid}`));
     const profile = snap.val() || { username: user.email.split("@")[0] };
 
     currentUserName.textContent = profile.username;
     currentAvatar.textContent = profile.username.charAt(0).toUpperCase();
 
-    // Presence management
+    // Setup Presence
     const userRef = ref(db, `users/${user.uid}`);
     onDisconnect(userRef).update({
       online: false,
@@ -154,15 +186,18 @@ onAuthStateChanged(auth, async (user) => {
     appScreen.classList.add("active");
     loadUsersList();
   } else {
-    currentUser = null;
+    appLayout.classList.remove("in-chat");
     appScreen.classList.remove("active");
     authScreen.classList.add("active");
+    usersList.innerHTML = "";
   }
 });
 
-// ================= CONTACT LIST & UNREAD BADGES =================
+// ================= CONTACTS & UNREAD COUNTS =================
 function loadUsersList() {
+  const myUid = auth.currentUser?.uid;
   const usersRef = ref(db, "users");
+
   onValue(usersRef, (snapshot) => {
     const data = snapshot.val() || {};
     renderUsers(data, searchInput.value);
@@ -175,10 +210,11 @@ function loadUsersList() {
 
 function renderUsers(usersData, query = "") {
   usersList.innerHTML = "";
+  const myUid = auth.currentUser?.uid;
   const filter = query.trim().toLowerCase();
 
   Object.values(usersData).forEach((u) => {
-    if (u.uid === currentUser.uid) return;
+    if (u.uid === myUid) return; // Prevent listing oneself
     if (filter && !u.username.toLowerCase().includes(filter)) return;
 
     const userDiv = document.createElement("div");
@@ -201,13 +237,15 @@ function renderUsers(usersData, query = "") {
     userDiv.addEventListener("click", () => openChat(u));
     usersList.appendChild(userDiv);
 
-    // Watch unread counter for this contact
     listenContactSummary(u.uid);
   });
 }
 
 function listenContactSummary(otherUid) {
-  const chatId = getChatId(currentUser.uid, otherUid);
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+
+  const chatId = getChatId(myUid, otherUid);
   const msgsRef = ref(db, `messages/${chatId}`);
 
   onValue(msgsRef, (snapshot) => {
@@ -220,7 +258,7 @@ function listenContactSummary(otherUid) {
       lastText = msgList[msgList.length - 1].text;
 
       msgList.forEach((m) => {
-        if (m.sender !== currentUser.uid && m.read === false) {
+        if (m.sender !== myUid && m.read === false) {
           unreadCount++;
         }
       });
@@ -241,17 +279,14 @@ function listenContactSummary(otherUid) {
   });
 }
 
-// ================= ACTIVE CHAT & MOBILE TRANSITION =================
+// ================= CHAT CONVERSATION VIEW =================
 function openChat(recipient) {
   activeRecipient = recipient;
-
-  // Mobile navigation slide
   appLayout.classList.add("in-chat");
 
   recipientName.textContent = recipient.username;
   recipientAvatar.textContent = recipient.username.charAt(0).toUpperCase();
 
-  // Clear unread badge immediately
   const badge = document.getElementById(`badge-${recipient.uid}`);
   if (badge) badge.style.display = "none";
 
@@ -274,10 +309,12 @@ function cleanupCurrentChat() {
   typingIndicator.style.display = "none";
 }
 
-// Presence & typing indicator
 function listenRecipientPresence(otherUid) {
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+
   currentStatusRef = ref(db, `users/${otherUid}`);
-  const chatId = getChatId(currentUser.uid, otherUid);
+  const chatId = getChatId(myUid, otherUid);
   currentTypingRef = ref(db, `typing/${chatId}/${otherUid}`);
 
   onValue(currentStatusRef, (snap) => {
@@ -305,9 +342,12 @@ function listenRecipientPresence(otherUid) {
   });
 }
 
-// ================= DEDUPLICATED MESSAGE LISTENER =================
+// ================= STRICT SENDER-VERIFIED MESSAGE RENDERING =================
 function listenMessages(otherUid) {
-  const chatId = getChatId(currentUser.uid, otherUid);
+  const myUid = auth.currentUser?.uid;
+  if (!myUid) return;
+
+  const chatId = getChatId(myUid, otherUid);
   currentMessagesRef = ref(db, `messages/${chatId}`);
 
   onValue(currentMessagesRef, (snapshot) => {
@@ -320,35 +360,35 @@ function listenMessages(otherUid) {
     const unreadUpdates = {};
 
     Object.entries(msgs).forEach(([msgKey, msg]) => {
-      const isMe = msg.sender === currentUser.uid;
+      // Deterministic evaluation: Is this my message or recipient's message?
+      const isMe = String(msg.sender).trim() === String(myUid).trim();
 
-      // Queue read receipts (without recursive firing)
+      // Queue read-receipt update if message was sent to me
       if (!isMe && msg.read === false) {
         unreadUpdates[`messages/${chatId}/${msgKey}/read`] = true;
       }
 
-      // Check if message DOM node already exists (avoids duplication)
       let bubble = document.getElementById(`msg-${msgKey}`);
+      const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
       if (bubble) {
-        // Only update tick mark if delivery/read status changed
+        // Force correct bubble class dynamically
+        bubble.className = isMe ? "bubble sent" : "bubble received";
+
         const tickContainer = bubble.querySelector(".tick-svg");
         if (tickContainer && isMe) {
-          if (msg.read) {
-            tickContainer.className = "tick-svg read";
-          } else {
-            tickContainer.className = "tick-svg delivered";
-          }
+          tickContainer.className = `tick-svg ${msg.read ? 'read' : 'delivered'}`;
         }
       } else {
-        // Create new bubble
         bubble = document.createElement("div");
         bubble.id = `msg-${msgKey}`;
-        bubble.className = `bubble ${isMe ? 'sent' : 'received'}`;
+        bubble.className = isMe ? "bubble sent" : "bubble received";
 
-        const time = new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        const senderHeader = !isMe ? `<span class="bubble-sender">${escapeHtml(activeRecipient.username)}</span>` : "";
         const ticksHtml = isMe ? doubleTickSvg(msg.read) : "";
 
         bubble.innerHTML = `
+          ${senderHeader}
           <span>${escapeHtml(msg.text)}</span>
           <div class="bubble-meta">
             <span class="msg-time">${time}</span>
@@ -359,7 +399,6 @@ function listenMessages(otherUid) {
       }
     });
 
-    // Execute atomic read update if any unread messages exist
     if (Object.keys(unreadUpdates).length > 0) {
       update(ref(db), unreadUpdates);
     }
@@ -368,22 +407,24 @@ function listenMessages(otherUid) {
   });
 }
 
-// ================= SENDING & COMPOSER =================
+// ================= SENDING MESSAGES =================
 async function sendMessage() {
   if (isSending) return;
+  const myUid = auth.currentUser?.uid;
   const text = messageInput.value.trim();
-  if (!text || !activeRecipient) return;
+
+  if (!text || !activeRecipient || !myUid) return;
 
   isSending = true;
   messageInput.value = "";
   setTyping(false);
 
-  const chatId = getChatId(currentUser.uid, activeRecipient.uid);
+  const chatId = getChatId(myUid, activeRecipient.uid);
   const msgsRef = ref(db, `messages/${chatId}`);
 
   try {
     await push(msgsRef, {
-      sender: currentUser.uid,
+      sender: myUid,
       text: text,
       timestamp: Date.now(),
       read: false
@@ -394,7 +435,10 @@ async function sendMessage() {
   }
 }
 
-sendBtn.addEventListener("click", sendMessage);
+sendBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  sendMessage();
+});
 
 messageInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
@@ -403,7 +447,7 @@ messageInput.addEventListener("keydown", (e) => {
   }
 });
 
-// Typing tracker
+// Typing Handler
 messageInput.addEventListener("input", () => {
   if (!activeRecipient) return;
   setTyping(true);
@@ -412,12 +456,13 @@ messageInput.addEventListener("input", () => {
 });
 
 function setTyping(isTyping) {
-  if (!activeRecipient) return;
-  const chatId = getChatId(currentUser.uid, activeRecipient.uid);
-  set(ref(db, `typing/${chatId}/${currentUser.uid}`), isTyping);
+  const myUid = auth.currentUser?.uid;
+  if (!activeRecipient || !myUid) return;
+  const chatId = getChatId(myUid, activeRecipient.uid);
+  set(ref(db, `typing/${chatId}/${myUid}`), isTyping);
 }
 
-// Emoji toggle
+// Emoji Handling
 emojiToggleBtn.addEventListener("click", (e) => {
   e.stopPropagation();
   emojiPicker.classList.toggle("show");
